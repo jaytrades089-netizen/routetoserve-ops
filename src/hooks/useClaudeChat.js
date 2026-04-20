@@ -71,7 +71,7 @@ export function useClaudeChat() {
   const sendMessage = useCallback(async (userText, mode, context) => {
     if (!userText.trim() || isLoading) return
 
-    const userMsg    = { role: 'user', content: userText }
+    const userMsg     = { role: 'user', content: userText }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setIsLoading(true)
@@ -89,13 +89,22 @@ export function useClaudeChat() {
         }),
       })
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error?.message ?? `Error ${res.status}`)
+      const data = await res.json()
+
+      // Surface Anthropic-level errors clearly
+      if (data.error) {
+        throw new Error(`Anthropic: ${data.error.message ?? JSON.stringify(data.error)}`)
       }
 
-      const data      = await res.json()
-      const assistant = { role: 'assistant', content: data.content[0]?.text ?? '...' }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+
+      if (!data.content || !data.content[0]) {
+        throw new Error(`Unexpected response: ${JSON.stringify(data)}`)
+      }
+
+      const assistant = { role: 'assistant', content: data.content[0].text }
       setMessages(prev => [...prev, assistant])
     } catch (err) {
       setError(err.message)
