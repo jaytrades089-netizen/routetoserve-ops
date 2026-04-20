@@ -15,10 +15,10 @@ export const CHECKLIST_STEPS = [
     why: 'Legal wall between the business and your personal assets. Non-negotiable before any external user touches the app.',
     cost: '~$50 filing fee',
     time: '1 hour',
-    link: 'https://cofs.lara.state.mi.us/corpweb/login.aspx',
-    linkLabel: 'LARA CORP Online Filing',
+    link: 'https://mibusinessregistry.lara.state.mi.us/',
+    linkLabel: 'MiBusiness Registry Portal',
     steps: [
-      'Create a LARA CORP online account',
+      'Create a MiLogin for Business account (top-right Login button)',
       'File Articles of Organization — Form CD-700',
       'Business name: RouteToServe LLC',
       'Registered agent: yourself at your home address',
@@ -243,7 +243,7 @@ export const CHECKLIST_STEPS = [
     why: 'This is where the secretary agent eventually lives. Set up now even if manual for a while.',
     cost: 'Free tier',
     time: '30 minutes',
-    link: 'https://slack.com/get-started#/create',
+    link: 'https://slack.com/create',
     linkLabel: 'Create Slack Workspace',
     steps: [
       'Create workspace named: RouteToServe',
