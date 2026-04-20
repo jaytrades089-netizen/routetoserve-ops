@@ -22,17 +22,21 @@ function modeIntro(mode, context) {
 
 export default function ClaudePanel({ mode, context, onClose }) {
   const { messages, isLoading, error, sendMessage, resetChat } = useClaudeChat()
-  const [input, setInput]   = useState('')
-  const bottomRef           = useRef(null)
-  const inputRef            = useRef(null)
+  const [input, setInput] = useState('')
+  const bottomRef         = useRef(null)
+  const inputRef          = useRef(null)
 
-  useEffect(() => { resetChat() }, [mode, context?.step?.id, context?.idea?.id, context?.decision?.id])
+  useEffect(() => {
+    resetChat()
+  }, [mode, context?.step?.id, context?.idea?.id, context?.decision?.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100) }, [])
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -50,6 +54,7 @@ export default function ClaudePanel({ mode, context, onClose }) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Bot size={16} className="text-accent shrink-0" />
@@ -62,7 +67,9 @@ export default function ClaudePanel({ mode, context, onClose }) {
         </button>
       </div>
 
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Intro message */}
         <div className="flex gap-3">
           <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0 mt-0.5">
             <Bot size={12} className="text-accent" />
@@ -72,6 +79,7 @@ export default function ClaudePanel({ mode, context, onClose }) {
           </div>
         </div>
 
+        {/* Conversation */}
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             {msg.role === 'assistant' && (
@@ -80,12 +88,16 @@ export default function ClaudePanel({ mode, context, onClose }) {
               </div>
             )}
             <div className={`rounded-card px-3 py-2.5 text-sm max-w-[85%] whitespace-pre-wrap
-              ${msg.role === 'user' ? 'bg-accent text-white ml-auto' : 'bg-elevated text-text'}`}>
+              ${msg.role === 'user'
+                ? 'bg-accent text-white ml-auto'
+                : 'bg-elevated text-text'
+              }`}>
               {msg.content}
             </div>
           </div>
         ))}
 
+        {/* Loading */}
         {isLoading && (
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
@@ -101,14 +113,17 @@ export default function ClaudePanel({ mode, context, onClose }) {
           </div>
         )}
 
+        {/* Error */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-400/10 rounded-btn px-3 py-2">
+          <div className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-btn px-3 py-2">
             Error: {error}
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
+      {/* Input */}
       <div className="px-4 py-3 border-t border-border shrink-0">
         <div className="flex gap-2">
           <textarea
@@ -116,7 +131,7 @@ export default function ClaudePanel({ mode, context, onClose }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Type a message..."
+            placeholder="Type a message... (Enter to send)"
             rows={1}
             className="flex-1 bg-elevated border border-border rounded-btn px-3 py-2 text-sm text-text placeholder-muted resize-none focus:outline-none focus:border-accent/60 transition-colors"
             style={{ minHeight: '38px', maxHeight: '120px' }}

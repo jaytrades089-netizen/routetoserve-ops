@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 
-const CLAUDE_API = 'https://api.anthropic.com/v1/messages'
-const MODEL      = 'claude-sonnet-4-20250514'
+const PROXY_URL = 'https://autumn-sunset-5ea2.jaytrades089.workers.dev'
+const MODEL     = 'claude-sonnet-4-20250514'
 
 function buildSystemPrompt(mode, context) {
   const base = `You are the RouteToServe business advisor embedded in Joshua Todd's operations dashboard. Joshua is a solo founder building RouteToServe LLC — a SaaS platform for process servers in Michigan — and an AI consulting practice. Be direct, practical, and concise. Joshua often processes information while driving so keep answers short and actionable.`
@@ -64,21 +64,21 @@ Be his trusted business advisor.`
 }
 
 export function useClaudeChat() {
-  const [messages, setMessages]     = useState([])
-  const [isLoading, setIsLoading]   = useState(false)
-  const [error, setError]           = useState(null)
+  const [messages, setMessages]   = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError]         = useState(null)
 
   const sendMessage = useCallback(async (userText, mode, context) => {
     if (!userText.trim() || isLoading) return
 
-    const userMsg = { role: 'user', content: userText }
+    const userMsg    = { role: 'user', content: userText }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setIsLoading(true)
     setError(null)
 
     try {
-      const res = await fetch(CLAUDE_API, {
+      const res = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,7 +91,7 @@ export function useClaudeChat() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error?.message ?? `API error ${res.status}`)
+        throw new Error(err?.error?.message ?? `Error ${res.status}`)
       }
 
       const data      = await res.json()
