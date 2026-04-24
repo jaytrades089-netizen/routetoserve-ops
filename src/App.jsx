@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import Layout     from './components/layout/Layout'
 import Dashboard  from './pages/Dashboard'
+import AppTracker from './components/app/AppTracker'
 import ClaudePanel from './components/claude/ClaudePanel'
 import {
   useChecklist,
@@ -9,20 +10,24 @@ import {
   useMetrics,
   useMilestone,
 } from './hooks/useStorage'
+import { useSprintItems, useAppIdeas } from './hooks/useAppStorage'
 
 export default function App() {
   // ── Navigation ─────────────────────────────────────────────────────────
   const [activePage, setActivePage] = useState('dashboard')
 
-  // ── All persistent state ────────────────────────────────────────────────
+  // ── Business state ──────────────────────────────────────────────────────
   const checklist = useChecklist()
   const ideas     = useIdeas()
   const decisions = useDecisions()
   const metrics   = useMetrics()
   const milestone = useMilestone()
 
+  // ── App tab state ───────────────────────────────────────────────────────
+  const sprintItems = useSprintItems()
+  const appIdeas    = useAppIdeas()
+
   // ── Claude panel ────────────────────────────────────────────────────────
-  // panel = null | { mode, context }
   const [panel, setPanel] = useState(null)
 
   const openChecklist = useCallback((step) =>
@@ -36,16 +41,15 @@ export default function App() {
 
   const closePanel = useCallback(() => setPanel(null), [])
 
-  // ── Checklist status change — also marks milestone on 'done' ───────────
+  // ── Checklist status change ─────────────────────────────────────────────
   const handleStatusChange = useCallback((id, status) => {
     checklist.updateStatus(id, status)
     if (status === 'done') milestone.markMilestone()
   }, [checklist, milestone])
 
-  // Patched checklist with wrapped handler
   const checklistWithMilestone = { ...checklist, updateStatus: handleStatusChange }
 
-  // ── Claude panel element (passed to Layout for side-panel rendering) ───
+  // ── Claude panel element ────────────────────────────────────────────────
   const claudePanelEl = panel ? (
     <ClaudePanel
       mode={panel.mode}
@@ -57,18 +61,11 @@ export default function App() {
   // ── Page routing ────────────────────────────────────────────────────────
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard':
-      default:
+      case 'app':
         return (
-          <Dashboard
-            checklist={checklistWithMilestone}
-            ideas={ideas}
-            decisions={decisions}
-            metrics={metrics}
-            daysSince={milestone.daysSince}
-            onTalkToClaudeStep={openChecklist}
-            onBlueprintIdea={openBlueprint}
-            onThinkDecision={openDecision}
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
           />
         )
       case 'checklist':
@@ -147,6 +144,20 @@ export default function App() {
               ))}
             </div>
           </div>
+        )
+      case 'dashboard':
+      default:
+        return (
+          <Dashboard
+            checklist={checklistWithMilestone}
+            ideas={ideas}
+            decisions={decisions}
+            metrics={metrics}
+            daysSince={milestone.daysSince}
+            onTalkToClaudeStep={openChecklist}
+            onBlueprintIdea={openBlueprint}
+            onThinkDecision={openDecision}
+          />
         )
     }
   }

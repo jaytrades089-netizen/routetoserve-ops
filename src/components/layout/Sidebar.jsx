@@ -1,4 +1,4 @@
-import { LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2, Smartphone } from 'lucide-react'
 
 const NAV = [
   { id: 'dashboard',  label: 'Dashboard',  Icon: LayoutDashboard },
@@ -6,6 +6,7 @@ const NAV = [
   { id: 'ideas',      label: 'Ideas',      Icon: Lightbulb },
   { id: 'decisions',  label: 'Decisions',  Icon: Scale },
   { id: 'metrics',    label: 'Metrics',    Icon: BarChart2 },
+  { id: 'app',        label: 'App',        Icon: Smartphone },
 ]
 
 export default function Sidebar({ active, onNav }) {
