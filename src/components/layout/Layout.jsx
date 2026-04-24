@@ -1,19 +1,22 @@
 import Sidebar from './Sidebar'
 import Header from './Header'
 
-export default function Layout({ activePage, onNav, claudePanel, children }) {
+export default function Layout({ activePage, onNav, activeWorkspace, onWorkspace, workspaces, claudePanel, children }) {
   const panelOpen = !!claudePanel
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
-      <Sidebar active={activePage} onNav={onNav} />
+      <Sidebar active={activePage} onNav={onNav} activeWorkspace={activeWorkspace} />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header />
+        <Header
+          activeWorkspace={activeWorkspace}
+          onWorkspace={onWorkspace}
+          workspaces={workspaces}
+        />
 
         {/* Content + Claude panel */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Main scrollable area */}
           <main
             className="flex-1 overflow-y-auto p-5 transition-all duration-300"
             style={{ minWidth: 0 }}

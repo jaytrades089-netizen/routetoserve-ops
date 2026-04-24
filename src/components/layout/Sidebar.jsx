@@ -1,15 +1,19 @@
-import { LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2, Smartphone } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2 } from 'lucide-react'
 
+// Sidebar only shows business sub-pages.
+// The App workspace has no sub-pages — it handles its own layout.
 const NAV = [
   { id: 'dashboard',  label: 'Dashboard',  Icon: LayoutDashboard },
   { id: 'checklist',  label: 'Checklist',  Icon: CheckSquare },
   { id: 'ideas',      label: 'Ideas',      Icon: Lightbulb },
   { id: 'decisions',  label: 'Decisions',  Icon: Scale },
   { id: 'metrics',    label: 'Metrics',    Icon: BarChart2 },
-  { id: 'app',        label: 'App',        Icon: Smartphone },
 ]
 
-export default function Sidebar({ active, onNav }) {
+export default function Sidebar({ active, onNav, activeWorkspace }) {
+  // Hide sidebar entirely when not in the business workspace
+  if (activeWorkspace !== 'business') return null
+
   return (
     <aside className="hidden md:flex flex-col w-[200px] min-h-screen bg-sidebar border-r border-border shrink-0">
       {/* Logo */}
@@ -31,10 +35,10 @@ export default function Sidebar({ active, onNav }) {
           <button
             key={id}
             onClick={() => onNav(id)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-150
               ${active === id
-                ? 'text-text bg-elevated border-l-2 border-accent'
-                : 'text-muted hover:text-text hover:bg-surface border-l-2 border-transparent'
+                ? 'text-text bg-elevated border-l-2 border-accent opacity-100'
+                : 'text-muted hover:text-text hover:bg-surface border-l-2 border-transparent opacity-40 hover:opacity-70'
               }`}
           >
             <Icon size={16} />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Plus, X, Lightbulb, Smartphone } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, X, Lightbulb, Smartphone, AlertTriangle, FileCode, Lock } from 'lucide-react'
 import {
   SPRINT_STAGES,
   PRIORITY_STYLE,
@@ -30,12 +30,21 @@ function StatusBadge({ status }) {
 function SprintItemRow({ item, onStatusChange, onNotesChange }) {
   const [expanded, setExpanded] = useState(false)
 
+  const isBlocked    = item.status === 'blocked'
+  const needsSpec    = item.status === 'needs-spec'
+  const showCallout  = (isBlocked || needsSpec) && item.blockedBy
+
   return (
     <div className={`rounded-btn border transition-colors ${
       item.status === 'done'
-        ? 'border-border bg-surface opacity-60'
-        : 'border-border bg-surface hover:bg-elevated'
+        ? 'border-border bg-surface opacity-50'
+        : isBlocked
+          ? 'border-red-500/30 bg-surface'
+          : needsSpec
+            ? 'border-warning/30 bg-surface'
+            : 'border-border bg-surface hover:bg-elevated'
     }`}>
+      {/* Row header */}
       <button
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
         onClick={() => setExpanded(p => !p)}
@@ -53,19 +62,62 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
         }
       </button>
 
+      {/* Expanded detail */}
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          {/* What + Why */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <div className="text-[9px] text-muted uppercase tracking-widest mb-1">What</div>
+              <div className="text-[9px] text-muted uppercase tracking-widest mb-1.5">What</div>
               <div className="text-xs text-text leading-relaxed">{item.what}</div>
             </div>
             <div>
-              <div className="text-[9px] text-muted uppercase tracking-widest mb-1">Why</div>
+              <div className="text-[9px] text-muted uppercase tracking-widest mb-1.5">Why</div>
               <div className="text-xs text-text leading-relaxed">{item.why}</div>
             </div>
           </div>
 
+          {/* File / Location */}
+          {item.file && (
+            <div className="flex gap-2 bg-elevated border border-border rounded-btn px-3 py-2.5">
+              <FileCode size={13} className="text-muted shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[9px] text-muted uppercase tracking-widest mb-0.5">File / Location</div>
+                <div className="text-xs text-text leading-relaxed font-mono">{item.file}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Blocked by / Needs spec callout */}
+          {showCallout && (
+            <div className={`flex gap-2 rounded-btn px-3 py-2.5 border ${
+              isBlocked
+                ? 'bg-red-500/10 border-red-500/20'
+                : 'bg-warning/10 border-warning/20'
+            }`}>
+              <AlertTriangle size={13} className={`shrink-0 mt-0.5 ${isBlocked ? 'text-red-400' : 'text-warning'}`} />
+              <div>
+                <div className={`text-[9px] uppercase tracking-widest mb-0.5 font-semibold ${isBlocked ? 'text-red-400' : 'text-warning'}`}>
+                  {isBlocked ? 'Blocked By' : 'Needs Spec — Open Decisions'}
+                </div>
+                <div className="text-xs text-text leading-relaxed">{item.blockedBy}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Spec / build notes */}
+          {item.notes && (
+            <div className="flex gap-2 bg-highest border border-border rounded-btn px-3 py-2.5">
+              <Lock size={13} className="text-muted shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[9px] text-muted uppercase tracking-widest mb-0.5">Spec Notes</div>
+                <div className="text-xs text-text leading-relaxed">{item.notes}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Status buttons */}
           <div>
             <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Status</div>
             <div className="flex gap-2 flex-wrap">
@@ -85,16 +137,18 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           </div>
 
+          {/* Freeform notes textarea */}
           <div>
-            <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Notes</div>
+            <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Session Notes</div>
             <textarea
               value={item.notes}
               onChange={e => onNotesChange(item.id, e.target.value)}
-              placeholder="Add notes..."
+              placeholder="Add notes from this session..."
               rows={2}
               className="w-full bg-elevated border border-border rounded-btn px-3 py-2 text-sm text-text placeholder-muted resize-none focus:outline-none focus:border-accent/60 transition-colors"
             />
           </div>
+
         </div>
       )}
     </div>
@@ -109,9 +163,9 @@ const IDEA_STATUS_STYLE = {
 }
 
 function AppIdeasPanel({ ideas, onAddIdea }) {
-  const [open, setOpen]   = useState(false)
-  const [title, setTitle] = useState('')
-  const [desc, setDesc]   = useState('')
+  const [open, setOpen]     = useState(false)
+  const [title, setTitle]   = useState('')
+  const [desc, setDesc]     = useState('')
   const [saving, setSaving] = useState(false)
 
   const reset = () => { setTitle(''); setDesc(''); setOpen(false) }
@@ -208,15 +262,15 @@ export default function AppTracker({ sprintItems, appIdeas }) {
         </div>
         {nextItem && (
           <div className="bg-elevated border border-accent/20 rounded-btn px-3 py-2">
-            <div className="text-[9px] text-muted uppercase tracking-widest mb-0.5">Next Up</div>
+            <div className="text-[9px] text-muted uppercase tracking-widest mb-0.5">Next Up — Stability Sprint</div>
             <div className="text-sm text-text font-medium">{nextItem.title}</div>
+            <div className="text-xs text-muted mt-0.5">{nextItem.what.split('.')[0]}.</div>
           </div>
         )}
       </div>
 
-      {/* Sprint items + ideas side by side on large screens */}
+      {/* Work tracker + ideas */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
-        {/* Sprint items by stage */}
         <div className="bg-surface border border-border rounded-card p-5 h-fit">
           <h2 className="text-text font-semibold mb-4">Work Tracker</h2>
           <div className="space-y-6">
@@ -242,7 +296,6 @@ export default function AppTracker({ sprintItems, appIdeas }) {
           </div>
         </div>
 
-        {/* App ideas */}
         <AppIdeasPanel
           ideas={appIdeas.ideas}
           onAddIdea={appIdeas.addIdea}

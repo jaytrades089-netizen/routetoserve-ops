@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
-import Layout     from './components/layout/Layout'
-import Dashboard  from './pages/Dashboard'
-import AppTracker from './components/app/AppTracker'
+import { LayoutDashboard, Smartphone } from 'lucide-react'
+import Layout      from './components/layout/Layout'
+import Dashboard   from './pages/Dashboard'
+import AppTracker  from './components/app/AppTracker'
 import ClaudePanel from './components/claude/ClaudePanel'
 import {
   useChecklist,
@@ -12,8 +13,18 @@ import {
 } from './hooks/useStorage'
 import { useSprintItems, useAppIdeas } from './hooks/useAppStorage'
 
+// ── Workspace tab definitions ───────────────────────────────────────────────
+// To add a new workspace: drop a new entry here. That's it.
+const WORKSPACES = [
+  { id: 'business', label: 'Business',    icon: LayoutDashboard },
+  { id: 'app',      label: 'ServeRoute App', icon: Smartphone   },
+]
+
 export default function App() {
-  // ── Navigation ─────────────────────────────────────────────────────────
+  // ── Top-level workspace (tab bar) ───────────────────────────────────────
+  const [activeWorkspace, setActiveWorkspace] = useState('business')
+
+  // ── Business sub-page (sidebar nav) ────────────────────────────────────
   const [activePage, setActivePage] = useState('dashboard')
 
   // ── Business state ──────────────────────────────────────────────────────
@@ -23,7 +34,7 @@ export default function App() {
   const metrics   = useMetrics()
   const milestone = useMilestone()
 
-  // ── App tab state ───────────────────────────────────────────────────────
+  // ── App workspace state ─────────────────────────────────────────────────
   const sprintItems = useSprintItems()
   const appIdeas    = useAppIdeas()
 
@@ -58,21 +69,25 @@ export default function App() {
     />
   ) : null
 
-  // ── Page routing ────────────────────────────────────────────────────────
-  const renderPage = () => {
+  // ── Workspace badge counts (shown on tabs) ──────────────────────────────
+  const appDoneCount    = sprintItems.items.filter(i => i.status === 'done').length
+  const appTotalCount   = sprintItems.items.length
+  const appActiveCount  = sprintItems.items.filter(i => i.status === 'in-progress').length
+  const bizDoneCount    = Object.values(checklist.statuses).filter(s => s.status === 'done').length
+
+  const workspacesWithBadges = WORKSPACES.map(ws => {
+    if (ws.id === 'business') return { ...ws, badge: `${bizDoneCount}/${checklist.totalCount}` }
+    if (ws.id === 'app')      return { ...ws, badge: appActiveCount > 0 ? `${appActiveCount} active` : `${appDoneCount}/${appTotalCount}` }
+    return ws
+  })
+
+  // ── Business sub-page renderer ──────────────────────────────────────────
+  const renderBusinessPage = () => {
     switch (activePage) {
-      case 'app':
-        return (
-          <AppTracker
-            sprintItems={sprintItems}
-            appIdeas={appIdeas}
-          />
-        )
       case 'checklist':
         return (
           <div className="space-y-4">
             <h1 className="text-xl font-bold text-text">Business Checklist</h1>
-            <p className="text-sm text-muted">Full checklist view — same as Dashboard, dedicated screen.</p>
             <Dashboard
               checklist={checklistWithMilestone}
               ideas={ideas}
@@ -162,13 +177,32 @@ export default function App() {
     }
   }
 
+  // ── Top-level workspace renderer ────────────────────────────────────────
+  const renderWorkspace = () => {
+    switch (activeWorkspace) {
+      case 'app':
+        return (
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
+          />
+        )
+      case 'business':
+      default:
+        return renderBusinessPage()
+    }
+  }
+
   return (
     <Layout
       activePage={activePage}
       onNav={setActivePage}
+      activeWorkspace={activeWorkspace}
+      onWorkspace={setActiveWorkspace}
+      workspaces={workspacesWithBadges}
       claudePanel={claudePanelEl}
     >
-      {renderPage()}
+      {renderWorkspace()}
     </Layout>
   )
 }
