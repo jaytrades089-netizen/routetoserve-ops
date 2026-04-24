@@ -30,9 +30,9 @@ function StatusBadge({ status }) {
 function SprintItemRow({ item, onStatusChange, onNotesChange }) {
   const [expanded, setExpanded] = useState(false)
 
-  const isBlocked    = item.status === 'blocked'
-  const needsSpec    = item.status === 'needs-spec'
-  const showCallout  = (isBlocked || needsSpec) && item.blockedBy
+  const isBlocked   = item.status === 'blocked'
+  const needsSpec   = item.status === 'needs-spec'
+  const showCallout = (isBlocked || needsSpec) && item.blockedBy
 
   return (
     <div className={`rounded-btn border transition-colors ${
@@ -44,7 +44,6 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             ? 'border-warning/30 bg-surface'
             : 'border-border bg-surface hover:bg-elevated'
     }`}>
-      {/* Row header */}
       <button
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
         onClick={() => setExpanded(p => !p)}
@@ -62,11 +61,8 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
         }
       </button>
 
-      {/* Expanded detail */}
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
-
-          {/* What + Why */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-[9px] text-muted uppercase tracking-widest mb-1.5">What</div>
@@ -78,7 +74,6 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           </div>
 
-          {/* File / Location */}
           {item.file && (
             <div className="flex gap-2 bg-elevated border border-border rounded-btn px-3 py-2.5">
               <FileCode size={13} className="text-muted shrink-0 mt-0.5" />
@@ -89,12 +84,9 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           )}
 
-          {/* Blocked by / Needs spec callout */}
           {showCallout && (
             <div className={`flex gap-2 rounded-btn px-3 py-2.5 border ${
-              isBlocked
-                ? 'bg-red-500/10 border-red-500/20'
-                : 'bg-warning/10 border-warning/20'
+              isBlocked ? 'bg-red-500/10 border-red-500/20' : 'bg-warning/10 border-warning/20'
             }`}>
               <AlertTriangle size={13} className={`shrink-0 mt-0.5 ${isBlocked ? 'text-red-400' : 'text-warning'}`} />
               <div>
@@ -106,7 +98,6 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           )}
 
-          {/* Spec / build notes */}
           {item.notes && (
             <div className="flex gap-2 bg-highest border border-border rounded-btn px-3 py-2.5">
               <Lock size={13} className="text-muted shrink-0 mt-0.5" />
@@ -117,7 +108,6 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           )}
 
-          {/* Status buttons */}
           <div>
             <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Status</div>
             <div className="flex gap-2 flex-wrap">
@@ -137,7 +127,6 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
             </div>
           </div>
 
-          {/* Freeform notes textarea */}
           <div>
             <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Session Notes</div>
             <textarea
@@ -148,21 +137,20 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
               className="w-full bg-elevated border border-border rounded-btn px-3 py-2 text-sm text-text placeholder-muted resize-none focus:outline-none focus:border-accent/60 transition-colors"
             />
           </div>
-
         </div>
       )}
     </div>
   )
 }
 
-// ── App ideas mini-pipeline ────────────────────────────────────────────────
+// ── App ideas panel ────────────────────────────────────────────────────────
 const IDEA_STATUS_STYLE = {
-  parked:  'bg-warning/10 text-warning border-warning/20',
-  active:  'bg-accent/10 text-accent border-accent/20',
-  done:    'bg-success/10 text-success border-success/20',
+  parked: 'bg-warning/10 text-warning border-warning/20',
+  active: 'bg-accent/10 text-accent border-accent/20',
+  done:   'bg-success/10 text-success border-success/20',
 }
 
-function AppIdeasPanel({ ideas, onAddIdea }) {
+function AppIdeasPanel({ ideas, onAddIdea, standalone = false }) {
   const [open, setOpen]     = useState(false)
   const [title, setTitle]   = useState('')
   const [desc, setDesc]     = useState('')
@@ -178,7 +166,7 @@ function AppIdeasPanel({ ideas, onAddIdea }) {
   }
 
   return (
-    <div className="bg-surface border border-border rounded-card p-5">
+    <div className={`bg-surface border border-border rounded-card p-5 ${standalone ? 'max-w-lg' : ''}`}>
       <div className="flex items-center gap-2 mb-4">
         <Lightbulb size={16} className="text-muted" />
         <h2 className="text-text font-semibold">App Ideas</h2>
@@ -239,12 +227,59 @@ function AppIdeasPanel({ ideas, onAddIdea }) {
   )
 }
 
-// ── Main AppTracker page ───────────────────────────────────────────────────
-export default function AppTracker({ sprintItems, appIdeas }) {
+// ── Stage section ──────────────────────────────────────────────────────────
+function StageSection({ stage, items, sprintItems }) {
+  if (!items.length) return (
+    <div className="text-sm text-muted text-center py-8">No items in this stage yet.</div>
+  )
+  return (
+    <div className="space-y-2">
+      {items.map(item => (
+        <SprintItemRow
+          key={item.id}
+          item={item}
+          onStatusChange={sprintItems.updateStatus}
+          onNotesChange={sprintItems.updateNotes}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── Main AppTracker ────────────────────────────────────────────────────────
+// stageFilter: null = overview (all stages), 'ideas-only' = ideas panel only,
+//              or a stage name string = show only that stage
+export default function AppTracker({ sprintItems, appIdeas, stageFilter = null }) {
   const doneCount  = sprintItems.items.filter(i => i.status === 'done').length
   const totalCount = sprintItems.items.length
   const nextItem   = sprintItems.items.find(i => i.status !== 'done' && i.stage === 'Stability Sprint')
 
+  // ── Ideas-only view ──────────────────────────────────────────────────────
+  if (stageFilter === 'ideas-only') {
+    return (
+      <div className="space-y-5">
+        <AppIdeasPanel ideas={appIdeas.ideas} onAddIdea={appIdeas.addIdea} standalone />
+      </div>
+    )
+  }
+
+  // ── Single stage view ────────────────────────────────────────────────────
+  if (stageFilter) {
+    const stageItems = sprintItems.items.filter(i => i.stage === stageFilter)
+    return (
+      <div className="space-y-5">
+        <div className="bg-surface border border-border rounded-card p-5">
+          <h2 className="text-text font-semibold mb-1">{stageFilter}</h2>
+          <p className="text-xs text-muted mb-4">
+            {stageItems.filter(i => i.status === 'done').length}/{stageItems.length} done
+          </p>
+          <StageSection stage={stageFilter} items={stageItems} sprintItems={sprintItems} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Overview (all stages + ideas sidebar) ────────────────────────────────
   return (
     <div className="space-y-5">
       {/* Header strip */}
@@ -269,10 +304,9 @@ export default function AppTracker({ sprintItems, appIdeas }) {
         )}
       </div>
 
-      {/* Work tracker + ideas */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="bg-surface border border-border rounded-card p-5 h-fit">
-          <h2 className="text-text font-semibold mb-4">Work Tracker</h2>
+          <h2 className="text-text font-semibold mb-4">All Work</h2>
           <div className="space-y-6">
             {SPRINT_STAGES.map(stage => {
               const stageItems = sprintItems.items.filter(i => i.stage === stage)
@@ -296,10 +330,7 @@ export default function AppTracker({ sprintItems, appIdeas }) {
           </div>
         </div>
 
-        <AppIdeasPanel
-          ideas={appIdeas.ideas}
-          onAddIdea={appIdeas.addIdea}
-        />
+        <AppIdeasPanel ideas={appIdeas.ideas} onAddIdea={appIdeas.addIdea} />
       </div>
     </div>
   )

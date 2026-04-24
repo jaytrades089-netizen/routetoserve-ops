@@ -14,18 +14,23 @@ import {
 import { useSprintItems, useAppIdeas } from './hooks/useAppStorage'
 
 // ── Workspace tab definitions ───────────────────────────────────────────────
-// To add a new workspace: drop a new entry here. That's it.
+// To add a new workspace: drop a new entry here and add its nav to Sidebar.jsx
 const WORKSPACES = [
-  { id: 'business', label: 'Business',    icon: LayoutDashboard },
-  { id: 'app',      label: 'ServeRoute App', icon: Smartphone   },
+  { id: 'business', label: 'Business',       icon: LayoutDashboard },
+  { id: 'app',      label: 'ServeRoute App',  icon: Smartphone      },
 ]
 
 export default function App() {
   // ── Top-level workspace (tab bar) ───────────────────────────────────────
   const [activeWorkspace, setActiveWorkspace] = useState('business')
 
-  // ── Business sub-page (sidebar nav) ────────────────────────────────────
-  const [activePage, setActivePage] = useState('dashboard')
+  // ── Per-workspace active page (each workspace remembers its own page) ───
+  const [businessPage, setBusinessPage] = useState('dashboard')
+  const [appPage,      setAppPage]      = useState('app-overview')
+
+  // Active page and setter for the current workspace
+  const activePage  = activeWorkspace === 'business' ? businessPage : appPage
+  const setActivePage = activeWorkspace === 'business' ? setBusinessPage : setAppPage
 
   // ── Business state ──────────────────────────────────────────────────────
   const checklist = useChecklist()
@@ -69,11 +74,11 @@ export default function App() {
     />
   ) : null
 
-  // ── Workspace badge counts (shown on tabs) ──────────────────────────────
-  const appDoneCount    = sprintItems.items.filter(i => i.status === 'done').length
-  const appTotalCount   = sprintItems.items.length
-  const appActiveCount  = sprintItems.items.filter(i => i.status === 'in-progress').length
-  const bizDoneCount    = Object.values(checklist.statuses).filter(s => s.status === 'done').length
+  // ── Workspace badge counts ──────────────────────────────────────────────
+  const appDoneCount   = sprintItems.items.filter(i => i.status === 'done').length
+  const appTotalCount  = sprintItems.items.length
+  const appActiveCount = sprintItems.items.filter(i => i.status === 'in-progress').length
+  const bizDoneCount   = Object.values(checklist.statuses).filter(s => s.status === 'done').length
 
   const workspacesWithBadges = WORKSPACES.map(ws => {
     if (ws.id === 'business') return { ...ws, badge: `${bizDoneCount}/${checklist.totalCount}` }
@@ -83,7 +88,7 @@ export default function App() {
 
   // ── Business sub-page renderer ──────────────────────────────────────────
   const renderBusinessPage = () => {
-    switch (activePage) {
+    switch (businessPage) {
       case 'checklist':
         return (
           <div className="space-y-4">
@@ -177,19 +182,61 @@ export default function App() {
     }
   }
 
-  // ── Top-level workspace renderer ────────────────────────────────────────
-  const renderWorkspace = () => {
-    switch (activeWorkspace) {
-      case 'app':
+  // ── App sub-page renderer ───────────────────────────────────────────────
+  // Each sidebar item passes a stageFilter so AppTracker shows only that stage.
+  // Overview passes null = show everything.
+  const renderAppPage = () => {
+    switch (appPage) {
+      case 'app-stability':
         return (
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            stageFilter="Stability Sprint"
           />
         )
-      case 'business':
+      case 'app-features':
+        return (
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
+            stageFilter="Pinned Features"
+          />
+        )
+      case 'app-horizon':
+        return (
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
+            stageFilter="On The Horizon"
+          />
+        )
+      case 'app-ideas':
+        return (
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
+            stageFilter="ideas-only"
+          />
+        )
+      case 'app-overview':
       default:
-        return renderBusinessPage()
+        return (
+          <AppTracker
+            sprintItems={sprintItems}
+            appIdeas={appIdeas}
+            stageFilter={null}
+          />
+        )
+    }
+  }
+
+  // ── Top-level workspace renderer ────────────────────────────────────────
+  const renderWorkspace = () => {
+    switch (activeWorkspace) {
+      case 'app':      return renderAppPage()
+      case 'business':
+      default:         return renderBusinessPage()
     }
   }
 

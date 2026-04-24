@@ -1,18 +1,32 @@
-import { LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2 } from 'lucide-react'
+import {
+  LayoutDashboard, CheckSquare, Lightbulb, Scale, BarChart2,
+  Smartphone, ListTodo, Layers, Rocket,
+} from 'lucide-react'
 
-// Sidebar only shows business sub-pages.
-// The App workspace has no sub-pages — it handles its own layout.
-const NAV = [
-  { id: 'dashboard',  label: 'Dashboard',  Icon: LayoutDashboard },
-  { id: 'checklist',  label: 'Checklist',  Icon: CheckSquare },
-  { id: 'ideas',      label: 'Ideas',      Icon: Lightbulb },
-  { id: 'decisions',  label: 'Decisions',  Icon: Scale },
-  { id: 'metrics',    label: 'Metrics',    Icon: BarChart2 },
-]
+// ── Nav config per workspace ────────────────────────────────────────────────
+// To add nav items to a new workspace: add an entry here keyed to the workspace id.
+const WORKSPACE_NAV = {
+  business: [
+    { id: 'dashboard',  label: 'Dashboard',  Icon: LayoutDashboard },
+    { id: 'checklist',  label: 'Checklist',  Icon: CheckSquare },
+    { id: 'ideas',      label: 'Ideas',      Icon: Lightbulb },
+    { id: 'decisions',  label: 'Decisions',  Icon: Scale },
+    { id: 'metrics',    label: 'Metrics',    Icon: BarChart2 },
+  ],
+  app: [
+    { id: 'app-overview',  label: 'Overview',        Icon: Smartphone },
+    { id: 'app-stability', label: 'Stability Sprint', Icon: ListTodo },
+    { id: 'app-features',  label: 'Pinned Features',  Icon: Layers },
+    { id: 'app-horizon',   label: 'On The Horizon',   Icon: Rocket },
+    { id: 'app-ideas',     label: 'App Ideas',        Icon: Lightbulb },
+  ],
+}
 
 export default function Sidebar({ active, onNav, activeWorkspace }) {
-  // Hide sidebar entirely when not in the business workspace
-  if (activeWorkspace !== 'business') return null
+  const nav = WORKSPACE_NAV[activeWorkspace] ?? []
+
+  // No nav items defined for this workspace — hide the sidebar
+  if (!nav.length) return null
 
   return (
     <aside className="hidden md:flex flex-col w-[200px] min-h-screen bg-sidebar border-r border-border shrink-0">
@@ -29,9 +43,9 @@ export default function Sidebar({ active, onNav, activeWorkspace }) {
         </div>
       </div>
 
-      {/* Nav */}
+      {/* Nav — same style for every workspace */}
       <nav className="flex-1 py-3">
-        {NAV.map(({ id, label, Icon }) => (
+        {nav.map(({ id, label, Icon }) => (
           <button
             key={id}
             onClick={() => onNav(id)}
