@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { DEFAULT_SPRINT_ITEMS, DEFAULT_APP_IDEAS } from '../data/appData'
 
 const KEYS = {
-  SPRINT_ITEMS: 'rts_app_sprint',
-  APP_IDEAS:    'rts_app_ideas',
+  SPRINT_ITEMS:   'rts_app_sprint',
+  APP_IDEAS:      'rts_app_ideas',
+  LOGGED_ISSUES:  'rts_app_logged_issues',
 }
 
 function load(key, fallback) {
@@ -67,4 +68,34 @@ export function useAppIdeas() {
   }, [])
 
   return { ideas, addIdea, updateIdea }
+}
+
+// ── Logged Issues ──────────────────────────────────────────────────────────
+// Issues captured in the field via the Log Issue form. Claude formats raw
+// input into a structured card; cards persist here in localStorage.
+export function useLoggedIssues() {
+  const [issues, setIssues] = useState(() => load(KEYS.LOGGED_ISSUES, []))
+
+  useEffect(() => { save(KEYS.LOGGED_ISSUES, issues) }, [issues])
+
+  const addIssue = useCallback((formatted) => {
+    const issue = {
+      ...formatted,
+      id:        `issue-${Date.now()}`,
+      status:    'todo',
+      createdAt: new Date().toISOString(),
+    }
+    setIssues(prev => [issue, ...prev])
+    return issue
+  }, [])
+
+  const updateIssueStatus = useCallback((id, status) => {
+    setIssues(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+  }, [])
+
+  const removeIssue = useCallback((id) => {
+    setIssues(prev => prev.filter(i => i.id !== id))
+  }, [])
+
+  return { issues, addIssue, updateIssueStatus, removeIssue }
 }

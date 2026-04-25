@@ -11,25 +11,23 @@ import {
   useMetrics,
   useMilestone,
 } from './hooks/useStorage'
-import { useSprintItems, useAppIdeas } from './hooks/useAppStorage'
+import { useSprintItems, useAppIdeas, useLoggedIssues } from './hooks/useAppStorage'
 
 // ── Workspace tab definitions ───────────────────────────────────────────────
-// To add a new workspace: drop a new entry here and add its nav to Sidebar.jsx
 const WORKSPACES = [
-  { id: 'business', label: 'Business',       icon: LayoutDashboard },
-  { id: 'app',      label: 'ServeRoute App',  icon: Smartphone      },
+  { id: 'business', label: 'Business',          icon: LayoutDashboard },
+  { id: 'app',      label: 'RouteToServe App',   icon: Smartphone      },
 ]
 
 export default function App() {
   // ── Top-level workspace (tab bar) ───────────────────────────────────────
   const [activeWorkspace, setActiveWorkspace] = useState('business')
 
-  // ── Per-workspace active page (each workspace remembers its own page) ───
+  // ── Per-workspace active page ───────────────────────────────────────────
   const [businessPage, setBusinessPage] = useState('dashboard')
   const [appPage,      setAppPage]      = useState('app-overview')
 
-  // Active page and setter for the current workspace
-  const activePage  = activeWorkspace === 'business' ? businessPage : appPage
+  const activePage    = activeWorkspace === 'business' ? businessPage : appPage
   const setActivePage = activeWorkspace === 'business' ? setBusinessPage : setAppPage
 
   // ── Business state ──────────────────────────────────────────────────────
@@ -40,8 +38,9 @@ export default function App() {
   const milestone = useMilestone()
 
   // ── App workspace state ─────────────────────────────────────────────────
-  const sprintItems = useSprintItems()
-  const appIdeas    = useAppIdeas()
+  const sprintItems   = useSprintItems()
+  const appIdeas      = useAppIdeas()
+  const loggedIssues  = useLoggedIssues()
 
   // ── Claude panel ────────────────────────────────────────────────────────
   const [panel, setPanel] = useState(null)
@@ -75,14 +74,22 @@ export default function App() {
   ) : null
 
   // ── Workspace badge counts ──────────────────────────────────────────────
-  const appDoneCount   = sprintItems.items.filter(i => i.status === 'done').length
-  const appTotalCount  = sprintItems.items.length
-  const appActiveCount = sprintItems.items.filter(i => i.status === 'in-progress').length
-  const bizDoneCount   = Object.values(checklist.statuses).filter(s => s.status === 'done').length
+  const appDoneCount    = sprintItems.items.filter(i => i.status === 'done').length
+  const appTotalCount   = sprintItems.items.length
+  const appActiveCount  = sprintItems.items.filter(i => i.status === 'in-progress').length
+  const openIssueCount  = loggedIssues.issues.filter(i => i.status !== 'done').length
+  const bizDoneCount    = Object.values(checklist.statuses).filter(s => s.status === 'done').length
 
   const workspacesWithBadges = WORKSPACES.map(ws => {
     if (ws.id === 'business') return { ...ws, badge: `${bizDoneCount}/${checklist.totalCount}` }
-    if (ws.id === 'app')      return { ...ws, badge: appActiveCount > 0 ? `${appActiveCount} active` : `${appDoneCount}/${appTotalCount}` }
+    if (ws.id === 'app') {
+      const badge = openIssueCount > 0
+        ? `${openIssueCount} open`
+        : appActiveCount > 0
+          ? `${appActiveCount} active`
+          : `${appDoneCount}/${appTotalCount}`
+      return { ...ws, badge }
+    }
     return ws
   })
 
@@ -183,8 +190,6 @@ export default function App() {
   }
 
   // ── App sub-page renderer ───────────────────────────────────────────────
-  // Each sidebar item passes a stageFilter so AppTracker shows only that stage.
-  // Overview passes null = show everything.
   const renderAppPage = () => {
     switch (appPage) {
       case 'app-stability':
@@ -192,6 +197,7 @@ export default function App() {
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            loggedIssues={loggedIssues}
             stageFilter="Stability Sprint"
           />
         )
@@ -200,6 +206,7 @@ export default function App() {
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            loggedIssues={loggedIssues}
             stageFilter="Pinned Features"
           />
         )
@@ -208,6 +215,7 @@ export default function App() {
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            loggedIssues={loggedIssues}
             stageFilter="On The Horizon"
           />
         )
@@ -216,6 +224,7 @@ export default function App() {
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            loggedIssues={loggedIssues}
             stageFilter="ideas-only"
           />
         )
@@ -225,6 +234,7 @@ export default function App() {
           <AppTracker
             sprintItems={sprintItems}
             appIdeas={appIdeas}
+            loggedIssues={loggedIssues}
             stageFilter={null}
           />
         )

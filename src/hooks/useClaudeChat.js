@@ -48,6 +48,54 @@ ${d.context ? `Context: ${d.context}` : ''}
 
 Help him think it through before logging it. Ask clarifying questions ONE at a time. Play devil's advocate where useful. When he is ready to decide, help him articulate the rationale so it is worth reading six months from now.`
     }
+    case 'app-issue': {
+      return `${base}
+
+Joshua is logging a new issue or task for the RouteToServe app (serveroute-v2). He is submitting a raw field report — possibly from his phone while working.
+
+Your job: take his raw input and format it into a clean, structured task card. Reply ONLY with a JSON object in this exact shape — no markdown, no explanation, just the JSON:
+
+{
+  "title": "Short title (5 words max)",
+  "type": "bug | feature | ux | spec",
+  "priority": "high | medium | low",
+  "what": "One sentence: what is broken or needed",
+  "why": "One sentence: why this matters in the field",
+  "file": "File path or component name if known, otherwise empty string",
+  "stage": "Stability Sprint"
+}
+
+Rules:
+- title should be scannable, not a sentence
+- type: bug = something broken, feature = new capability, ux = friction/confusion, spec = needs planning before building
+- priority: high = blocks field work, medium = degrades experience, low = nice to have
+- If file/location is not mentioned, leave it as empty string
+- stage is always "Stability Sprint" unless Joshua specifies otherwise`
+    }
+    case 'work-on': {
+      const item = context.item
+      return `${base}
+
+Joshua wants to start a Claude Code session to work on this task:
+
+TASK: ${item.title}
+WHAT: ${item.what}
+WHY: ${item.why}
+FILE / LOCATION: ${item.file || 'Not specified'}
+PRIORITY: ${item.priority}
+STATUS: ${item.status}
+${item.blockedBy ? `BLOCKED BY / OPEN DECISIONS: ${item.blockedBy}` : ''}
+${item.notes ? `SESSION NOTES: ${item.notes}` : ''}
+
+Generate a ready-to-paste Claude Code session starter prompt. The prompt must:
+1. Tell Claude Code to run: cd ~/Desktop/Claude/serveroute-v2 && git pull
+2. List the exact files to read first (based on the file/location above — include CLAUDE.md and docs/WORKFLOW.md always)
+3. State the specific task clearly
+4. Include any open decisions or blockers that need resolving first
+5. End with: "Present your plan and wait for approval before editing any files."
+
+Write ONLY the prompt text — no preamble, no explanation. It should be ready to paste directly into Claude Code.`
+    }
     default:
       return `${base}
 
@@ -91,7 +139,6 @@ export function useClaudeChat() {
 
       const data = await res.json()
 
-      // Surface Anthropic-level errors clearly
       if (data.error) {
         throw new Error(`Anthropic: ${data.error.message ?? JSON.stringify(data.error)}`)
       }
