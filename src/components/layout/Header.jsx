@@ -1,16 +1,42 @@
 import { Bell, Settings } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export default function Header({ activeWorkspace, onWorkspace, workspaces }) {
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // Update every minute
+    return () => clearInterval(timer)
+  }, [])
+
+  const formatDateTime = (date) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    const timeString = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).toLowerCase().replace(' ', '') // removes space before am/pm and makes it lowercase
+
+    return `${dayName} ${month}/${day} ${timeString}`
+  }
+
   return (
     <header className="shrink-0 border-b border-border bg-sidebar">
       {/* Top row — logo (mobile) + actions */}
       <div className="h-14 flex items-center justify-between px-5">
-        {/* Mobile logo */}
+        {/* Mobile logo + Date/Time */}
         <div className="flex md:hidden items-center gap-2">
           <div className="w-6 h-6 rounded bg-accent flex items-center justify-center text-white font-bold text-xs">
             R
           </div>
           <span className="text-text text-sm font-semibold">RTS Ops</span>
+          <span className="text-muted text-[10px] font-medium ml-1">
+            {formatDateTime(currentTime)}
+          </span>
         </div>
 
         {/* Desktop spacer */}
