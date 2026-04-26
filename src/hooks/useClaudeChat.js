@@ -1,3 +1,8 @@
+// ⚠️ ESCALATE TO CLAUDE — Do not modify with Gemma4
+// Self-identified as HIGH COMPLEXITY during workspace review (April 25, 2026)
+// Reasons: strict JSON output constraints (app-issue mode), meta-prompting logic (work-on mode),
+// high dependency on correct context objects. Errors here break the embedded Claude chat entirely.
+
 import { useState, useCallback } from 'react'
 
 const PROXY_URL = 'https://autumn-sunset-5ea2.jaytrades089.workers.dev'
