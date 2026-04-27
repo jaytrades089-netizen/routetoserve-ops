@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { ChevronRight, ChevronDown, Plus, X, Lightbulb, Smartphone, AlertTriangle, FileCode, Lock, Terminal, Bug, Sparkles, Copy, Check, Camera, ImagePlus, Trash2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, X, Lightbulb, Smartphone, AlertTriangle, FileCode, Lock, Terminal, Bug, Sparkles, Copy, Check, Camera, ImagePlus, Trash2, Send } from 'lucide-react'
 import {
   SPRINT_STAGES,
   PRIORITY_STYLE,
@@ -33,17 +33,58 @@ function StatusBadge({ status }) {
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload  = () => resolve(reader.result) // full data URL: "data:image/jpeg;base64,..."
+    reader.onload  = () => resolve(reader.result)
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
 }
 
-// Strip the data URL prefix to get raw base64 + media_type
 function parseDataUrl(dataUrl) {
   const [header, data] = dataUrl.split(',')
   const mediaType = header.replace('data:', '').replace(';base64', '')
   return { mediaType, data }
+}
+
+// ── Telegram message builder ───────────────────────────────────────────────
+// Produces a /bug command the field bot understands.
+// Bot receives this, formats it, and saves to Drive in the correct folder.
+function buildTelegramMessage(item) {
+  const category = item.category || item.stage || 'Stability'
+  const lines = [
+    `/bug`,
+    `Title: ${item.title}`,
+    `Priority: ${item.priority}`,
+    `Category: ${category}`,
+    `What: ${item.what}`,
+    `Why: ${item.why}`,
+  ]
+  if (item.file)      lines.push(`File: ${item.file}`)
+  if (item.blockedBy) lines.push(`Blocked by: ${item.blockedBy}`)
+  if (item.notes)     lines.push(`Notes: ${item.notes}`)
+  return lines.join('\n')
+}
+
+// ── Send to Telegram button (shared) ──────────────────────────────────────
+function TelegramCopyButton({ item }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(() => {
+    const msg = buildTelegramMessage(item)
+    navigator.clipboard.writeText(msg).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
+  }, [item])
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-2 text-sm px-4 py-2 bg-elevated hover:bg-highest border border-border hover:border-accent/40 text-text rounded-btn transition-colors"
+    >
+      {copied ? <Check size={14} className="text-green-400" /> : <Send size={14} className="text-accent" />}
+      {copied ? 'Copied — paste into Telegram' : 'Send to Telegram Bot'}
+    </button>
+  )
 }
 
 // ── Work On modal ──────────────────────────────────────────────────────────
@@ -245,13 +286,16 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
               />
             </div>
 
-            <button
-              onClick={() => setShowWorkOn(true)}
-              className="flex items-center gap-2 text-sm px-4 py-2 bg-elevated hover:bg-highest border border-border hover:border-accent/40 text-text rounded-btn transition-colors"
-            >
-              <Terminal size={14} className="text-accent" />
-              Work on this in Claude Code
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowWorkOn(true)}
+                className="flex items-center gap-2 text-sm px-4 py-2 bg-elevated hover:bg-highest border border-border hover:border-accent/40 text-text rounded-btn transition-colors"
+              >
+                <Terminal size={14} className="text-accent" />
+                Work on this in Claude Code
+              </button>
+              <TelegramCopyButton item={item} />
+            </div>
           </div>
         )}
       </div>
@@ -368,7 +412,7 @@ function LogIssuePanel({ onAddIssue }) {
   const [open, setOpen]           = useState(false)
   const [type, setType]           = useState('bug')
   const [description, setDesc]    = useState('')
-  const [images, setImages]       = useState([]) // [{ dataUrl, mediaType, data, name }]
+  const [images, setImages]       = useState([])
   const [pending, setPending]     = useState(false)
   const [error, setError]         = useState(null)
 
@@ -386,7 +430,6 @@ function LogIssuePanel({ onAddIssue }) {
   const handleFiles = async (files) => {
     const accepted = Array.from(files).filter(f => f.type.startsWith('image/'))
     if (!accepted.length) return
-    // Cap at 3 images total
     const remaining = 3 - images.length
     const toAdd = accepted.slice(0, remaining)
     const converted = await Promise.all(toAdd.map(async (file) => {
@@ -427,7 +470,6 @@ Rules:
 - file: empty string if not mentioned
 - If screenshots are provided, describe what they show in screenshotDescription to help developers understand the visual context`
 
-      // Build message content — text first, then images
       const userContent = [
         { type: 'text', text: `Type: ${type}\n\n${description}` },
         ...images.map(img => ({
@@ -454,7 +496,6 @@ Rules:
       const clean  = raw.replace(/```json|```/g, '').trim()
       const parsed = JSON.parse(clean)
 
-      // Store thumbnail data URLs (not full base64 blobs) for display
       onAddIssue({
         ...parsed,
         screenshots: images.map(img => img.dataUrl),
@@ -490,7 +531,6 @@ Rules:
             <button onClick={reset} className="text-muted hover:text-text"><X size={14} /></button>
           </div>
 
-          {/* Type selector */}
           <div>
             <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Type</div>
             <div className="flex gap-2 flex-wrap">
@@ -511,7 +551,6 @@ Rules:
             </div>
           </div>
 
-          {/* Description */}
           <textarea
             autoFocus
             value={description}
@@ -521,13 +560,11 @@ Rules:
             className="w-full bg-elevated border border-border rounded-btn px-3 py-2 text-sm text-text placeholder-muted resize-none focus:outline-none focus:border-accent/60 transition-colors"
           />
 
-          {/* Screenshot attachments */}
           <div>
             <div className="text-[9px] text-muted uppercase tracking-widest mb-2">
               Screenshots <span className="normal-case">(optional, up to 3)</span>
             </div>
 
-            {/* Image previews */}
             {images.length > 0 && (
               <div className="flex gap-2 flex-wrap mb-2">
                 {images.map((img, idx) => (
@@ -548,10 +585,8 @@ Rules:
               </div>
             )}
 
-            {/* Add image buttons — only show if under limit */}
             {images.length < 3 && (
               <div className="flex gap-2">
-                {/* Upload from library */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-elevated border border-border hover:border-accent/40 text-muted hover:text-text rounded-btn transition-colors"
@@ -559,8 +594,6 @@ Rules:
                   <ImagePlus size={12} />
                   Upload
                 </button>
-
-                {/* Camera capture — on mobile this opens camera directly */}
                 <button
                   onClick={() => cameraInputRef.current?.click()}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-elevated border border-border hover:border-accent/40 text-muted hover:text-text rounded-btn transition-colors"
@@ -568,8 +601,6 @@ Rules:
                   <Camera size={12} />
                   Camera
                 </button>
-
-                {/* Hidden file inputs */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -616,7 +647,6 @@ function LoggedIssueCard({ issue, onUpdateStatus, onRemove }) {
 
   return (
     <>
-      {/* Lightbox */}
       {lightboxSrc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -677,7 +707,6 @@ function LoggedIssueCard({ issue, onUpdateStatus, onRemove }) {
               </div>
             )}
 
-            {/* Screenshot thumbnails */}
             {issue.screenshots?.length > 0 && (
               <div>
                 <div className="text-[9px] text-muted uppercase tracking-widest mb-2">Screenshots</div>
@@ -719,6 +748,8 @@ function LoggedIssueCard({ issue, onUpdateStatus, onRemove }) {
                 Remove
               </button>
             </div>
+
+            <TelegramCopyButton item={issue} />
           </div>
         )}
       </div>
