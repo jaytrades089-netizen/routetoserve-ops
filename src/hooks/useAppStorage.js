@@ -18,14 +18,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { DEFAULT_SPRINT_ITEMS, DEFAULT_APP_IDEAS } from '../data/appData'
 
-const IDEAS_KEY       = 'rts_app_ideas'
-const SPRINT_KEY      = 'rts_sprint_items'    // sprint items only
-const FIELD_REPORTS_KEY = 'rts_field_reports' // field reports only — separate key
+const IDEAS_KEY         = 'rts_app_ideas'
+const SPRINT_KEY        = 'rts_sprint_items'
+const FIELD_REPORTS_KEY = 'rts_field_reports'
+const LEGACY_KEY        = 'rts_app_all_bugs'  // old key — migrated on first load
 
 const SERVER_URL    = 'http://localhost:3001'
 const POLL_INTERVAL = 30_000
 
-// Maps appData stage names → Drive category folder names
 const STAGE_TO_CATEGORY = {
   'Stability Sprint': 'Stability',
   'Pinned Features':  'Features',
@@ -43,6 +43,45 @@ function lsLoad(key, fallback) {
 function lsSave(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
 }
+
+// ── One-time migration from legacy key ────────────────────────────────────
+// The old code stored everything under rts_app_all_bugs — sprint items AND
+// field reports mixed together. This runs once on load, splits them out into
+// their correct keys, and clears the legacy key so it never runs again.
+function runLegacyMigration() {
+  try {
+    const legacy = localStorage.getItem(LEGACY_KEY)
+    if (!legacy) return // already migrated or nothing to migrate
+
+    const all = JSON.parse(legacy)
+    if (!Array.isArray(all) || all.length === 0) {
+      localStorage.removeItem(LEGACY_KEY)
+      return
+    }
+
+    // Items with a stage field are sprint items, everything else is a field report
+    const sprintItems   = all.filter(i => i.stage)
+    const fieldReports  = all.filter(i => !i.stage)
+
+    // Only write to new keys if the new keys are currently empty
+    // (avoids overwriting if migration already partially ran)
+    if (sprintItems.length > 0 && !localStorage.getItem(SPRINT_KEY)) {
+      lsSave(SPRINT_KEY, sprintItems)
+    }
+    if (fieldReports.length > 0 && !localStorage.getItem(FIELD_REPORTS_KEY)) {
+      lsSave(FIELD_REPORTS_KEY, fieldReports)
+    }
+
+    // Clear legacy key so this never runs again
+    localStorage.removeItem(LEGACY_KEY)
+    console.log(`[Migration] Moved ${sprintItems.length} sprint items + ${fieldReports.length} field reports from legacy key.`)
+  } catch (err) {
+    console.warn('[Migration] Failed:', err.message)
+  }
+}
+
+// Run migration immediately when this module loads
+runLegacyMigration()
 
 // ── Drive API helpers ──────────────────────────────────────────────────────
 async function fetchBugsFromServer() {
@@ -72,7 +111,6 @@ async function seedBugsToServer(bugs) {
   return res.json()
 }
 
-// ── Seed helper: convert appData items → Drive bug format ─────────────────
 function sprintItemsToBugs(items) {
   return items.map(item => ({
     id:        item.id,
@@ -90,7 +128,7 @@ function sprintItemsToBugs(items) {
   }))
 }
 
-// ── Sprint Items (Drive-backed) ────────────────────────────────────────────
+// ── Sprint Items ───────────────────────────────────────────────────────────
 export function useSprintItems() {
   const [items, setItems]           = useState([])
   const [syncStatus, setSyncStatus] = useState('loading')
@@ -103,7 +141,6 @@ export function useSprintItems() {
     async function initialLoad() {
       try {
         const driveItems = await fetchBugsFromServer()
-        // Only sprint items — filter out field reports (they have no stage)
         const sprintOnly = driveItems.filter(i => i.stage)
 
         if (sprintOnly.length === 0 && !seeded.current) {
@@ -151,9 +188,7 @@ export function useSprintItems() {
         })
         lsSave(SPRINT_KEY, sprintOnly)
         setSyncStatus('synced')
-      } catch {
-        setSyncStatus('offline')
-      }
+      } catch { setSyncStatus('offline') }
     }, POLL_INTERVAL)
     return () => clearInterval(timer)
   }, [])
@@ -165,11 +200,8 @@ export function useSprintItems() {
     try {
       await saveBugsToServer(updated)
       setSyncStatus('synced')
-    } catch {
-      setSyncStatus('offline')
-    } finally {
-      pendingWrite.current = false
-    }
+    } catch { setSyncStatus('offline') }
+    finally { pendingWrite.current = false }
   }
 
   const updateStatus = useCallback((id, status) => {
@@ -196,7 +228,7 @@ export function useSprintItems() {
   return { items, syncStatus, updateStatus, updateNotes, getByStage }
 }
 
-// ── App Ideas (localStorage) ───────────────────────────────────────────────
+// ── App Ideas ──────────────────────────────────────────────────────────────
 export function useAppIdeas() {
   const [ideas, setIdeas] = useState(() => lsLoad(IDEAS_KEY, DEFAULT_APP_IDEAS))
 
@@ -223,8 +255,8 @@ export function useAppIdeas() {
 }
 
 // ── Logged Issues / Field Reports ──────────────────────────────────────────
-// Stored under their own key — completely separate from sprint items.
-// localStorage is loaded first so existing reports always show immediately.
+// Loads from localStorage immediately — field reports always show on load.
+// Tries Drive in the background to pick up any server-synced reports.
 export function useLoggedIssues() {
   const [issues, setIssues]         = useState(() => lsLoad(FIELD_REPORTS_KEY, []))
   const [syncStatus, setSyncStatus] = useState('offline')
@@ -233,11 +265,9 @@ export function useLoggedIssues() {
   useEffect(() => {
     let cancelled = false
 
-    // Try server in the background to pick up any Drive-synced field reports
     async function syncFromDrive() {
       try {
-        const driveItems = await fetchBugsFromServer()
-        // Field reports are items without a stage field
+        const driveItems  = await fetchBugsFromServer()
         const reportsOnly = driveItems.filter(i => !i.stage)
         if (!cancelled && reportsOnly.length > 0) {
           setIssues(prev => {
@@ -250,7 +280,7 @@ export function useLoggedIssues() {
           setSyncStatus('synced')
         }
       } catch {
-        // Server unavailable — localStorage data already showing, nothing to do
+        // Server unavailable — localStorage data already showing
       }
     }
 
@@ -258,7 +288,6 @@ export function useLoggedIssues() {
     return () => { cancelled = true }
   }, [])
 
-  // 30-second poll
   useEffect(() => {
     const timer = setInterval(async () => {
       if (pendingWrite.current) return
