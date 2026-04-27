@@ -18,8 +18,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { DEFAULT_SPRINT_ITEMS, DEFAULT_APP_IDEAS } from '../data/appData'
 
-const IDEAS_KEY     = 'rts_app_ideas'
-const ISSUES_KEY    = 'rts_app_all_bugs' // offline cache for unified bug list
+const IDEAS_KEY       = 'rts_app_ideas'
+const SPRINT_KEY      = 'rts_sprint_items'    // sprint items only
+const FIELD_REPORTS_KEY = 'rts_field_reports' // field reports only — separate key
 
 const SERVER_URL    = 'http://localhost:3001'
 const POLL_INTERVAL = 30_000
@@ -89,47 +90,45 @@ function sprintItemsToBugs(items) {
   }))
 }
 
-// ── Sprint Items (Drive-backed, unified with logged issues) ────────────────
+// ── Sprint Items (Drive-backed) ────────────────────────────────────────────
 export function useSprintItems() {
-  const [items, setItems]         = useState([])
+  const [items, setItems]           = useState([])
   const [syncStatus, setSyncStatus] = useState('loading')
-  const pendingWrite              = useRef(false)
-  const seeded                    = useRef(false)
+  const pendingWrite                = useRef(false)
+  const seeded                      = useRef(false)
 
-  // Initial load: try Drive first, fall back to appData defaults
   useEffect(() => {
     let cancelled = false
 
     async function initialLoad() {
       try {
         const driveItems = await fetchBugsFromServer()
+        // Only sprint items — filter out field reports (they have no stage)
+        const sprintOnly = driveItems.filter(i => i.stage)
 
-        if (driveItems.length === 0 && !seeded.current) {
-          // First run — seed Drive with current appData items
+        if (sprintOnly.length === 0 && !seeded.current) {
           seeded.current = true
           const seedData = sprintItemsToBugs(DEFAULT_SPRINT_ITEMS)
           await seedBugsToServer(seedData)
           if (!cancelled) {
             setItems(seedData)
-            lsSave(ISSUES_KEY, seedData)
+            lsSave(SPRINT_KEY, seedData)
             setSyncStatus('synced')
           }
         } else {
           if (!cancelled) {
-            setItems(driveItems)
-            lsSave(ISSUES_KEY, driveItems)
+            setItems(sprintOnly)
+            lsSave(SPRINT_KEY, sprintOnly)
             setSyncStatus('synced')
           }
         }
       } catch {
-        // Offline — fall back to localStorage, then appData defaults
-        const cached = lsLoad(ISSUES_KEY, null)
+        const cached = lsLoad(SPRINT_KEY, null)
         if (!cancelled) {
-          if (cached && cached.length > 0) {
-            setItems(cached)
-          } else {
-            setItems(sprintItemsToBugs(DEFAULT_SPRINT_ITEMS))
-          }
+          setItems(cached && cached.length > 0
+            ? cached
+            : sprintItemsToBugs(DEFAULT_SPRINT_ITEMS)
+          )
           setSyncStatus('offline')
         }
       }
@@ -139,18 +138,18 @@ export function useSprintItems() {
     return () => { cancelled = true }
   }, [])
 
-  // 30-second poll
   useEffect(() => {
     const timer = setInterval(async () => {
       if (pendingWrite.current) return
       try {
         const driveItems = await fetchBugsFromServer()
+        const sprintOnly = driveItems.filter(i => i.stage)
         setItems(prev => {
-          const driveIds  = new Set(driveItems.map(i => i.id))
+          const driveIds  = new Set(sprintOnly.map(i => i.id))
           const localOnly = prev.filter(i => !driveIds.has(i.id))
-          return [...driveItems, ...localOnly]
+          return [...sprintOnly, ...localOnly]
         })
-        lsSave(ISSUES_KEY, driveItems)
+        lsSave(SPRINT_KEY, sprintOnly)
         setSyncStatus('synced')
       } catch {
         setSyncStatus('offline')
@@ -159,10 +158,9 @@ export function useSprintItems() {
     return () => clearInterval(timer)
   }, [])
 
-  // Write helper
   async function persistItems(updated) {
     setItems(updated)
-    lsSave(ISSUES_KEY, updated)
+    lsSave(SPRINT_KEY, updated)
     pendingWrite.current = true
     try {
       await saveBugsToServer(updated)
@@ -190,7 +188,6 @@ export function useSprintItems() {
     })
   }, [])
 
-  // Filter helpers for the existing stage-based UI
   const getByStage = useCallback((stage) => {
     if (!stage) return items
     return items.filter(i => i.stage === stage)
@@ -225,52 +222,66 @@ export function useAppIdeas() {
   return { ideas, addIdea, updateIdea }
 }
 
-// ── Logged Issues (alias for useSprintItems for backward compatibility) ────
-// The dashboard's LoggedIssues component uses this hook.
-// Now all items — sprint + logged — live in the same Drive-backed store.
+// ── Logged Issues / Field Reports ──────────────────────────────────────────
+// Stored under their own key — completely separate from sprint items.
+// localStorage is loaded first so existing reports always show immediately.
 export function useLoggedIssues() {
-  const [issues, setIssues]         = useState([])
-  const [syncStatus, setSyncStatus] = useState('loading')
+  const [issues, setIssues]         = useState(() => lsLoad(FIELD_REPORTS_KEY, []))
+  const [syncStatus, setSyncStatus] = useState('offline')
   const pendingWrite                = useRef(false)
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
+
+    // Try server in the background to pick up any Drive-synced field reports
+    async function syncFromDrive() {
       try {
         const driveItems = await fetchBugsFromServer()
-        if (!cancelled) {
-          setIssues(driveItems)
-          lsSave(ISSUES_KEY, driveItems)
+        // Field reports are items without a stage field
+        const reportsOnly = driveItems.filter(i => !i.stage)
+        if (!cancelled && reportsOnly.length > 0) {
+          setIssues(prev => {
+            const driveIds  = new Set(reportsOnly.map(i => i.id))
+            const localOnly = prev.filter(i => !driveIds.has(i.id))
+            const merged    = [...reportsOnly, ...localOnly]
+            lsSave(FIELD_REPORTS_KEY, merged)
+            return merged
+          })
           setSyncStatus('synced')
         }
       } catch {
-        const cached = lsLoad(ISSUES_KEY, [])
-        if (!cancelled) { setIssues(cached); setSyncStatus('offline') }
+        // Server unavailable — localStorage data already showing, nothing to do
       }
     }
-    load()
+
+    syncFromDrive()
     return () => { cancelled = true }
   }, [])
 
+  // 30-second poll
   useEffect(() => {
     const timer = setInterval(async () => {
       if (pendingWrite.current) return
       try {
-        const driveItems = await fetchBugsFromServer()
-        setIssues(prev => {
-          const driveIds  = new Set(driveItems.map(i => i.id))
-          const localOnly = prev.filter(i => !driveIds.has(i.id))
-          return [...driveItems, ...localOnly]
-        })
-        setSyncStatus('synced')
+        const driveItems  = await fetchBugsFromServer()
+        const reportsOnly = driveItems.filter(i => !i.stage)
+        if (reportsOnly.length > 0) {
+          setIssues(prev => {
+            const driveIds  = new Set(reportsOnly.map(i => i.id))
+            const localOnly = prev.filter(i => !driveIds.has(i.id))
+            const merged    = [...reportsOnly, ...localOnly]
+            lsSave(FIELD_REPORTS_KEY, merged)
+            return merged
+          })
+          setSyncStatus('synced')
+        }
       } catch { setSyncStatus('offline') }
     }, POLL_INTERVAL)
     return () => clearInterval(timer)
   }, [])
 
   async function persistIssues(updated) {
-    setIssues(updated)
-    lsSave(ISSUES_KEY, updated)
+    lsSave(FIELD_REPORTS_KEY, updated)
     pendingWrite.current = true
     try {
       await saveBugsToServer(updated)
