@@ -11,6 +11,41 @@ import { useClaudeChat } from '../../hooks/useClaudeChat'
 
 const PROXY_URL = 'https://autumn-sunset-5ea2.jaytrades089.workers.dev'
 
+// Static file map of serveroute-v2 — sent to Haiku in step 2 so it can
+// locate which file a bug likely lives in without reading the whole codebase.
+const CODEBASE_FILE_MAP = `serveroute-v2 file map:
+
+PAGES (src/pages/):
+WorkerRouteDetail.jsx, WorkerHome.jsx, WorkerRoutes.jsx, WorkerMap.jsx,
+WorkerPayout.jsx, WorkerReceipts.jsx, WorkerStats.jsx, WorkerSettings.jsx,
+WorkerDetail.jsx, WorkerAddresses.jsx, WorkerComboRouteDetail.jsx,
+WorkerVacationRequest.jsx, BossDashboard.jsx, BossRoutes.jsx,
+BossRouteDetail.jsx, BossWorkers.jsx, BossTeam.jsx, BossSettings.jsx,
+BossNotifications.jsx, ScanCamera.jsx, ScanPreview.jsx, ScanVerify.jsx,
+ScanRouteSetup.jsx, ScanSortReview.jsx, ScanAddToRoute.jsx,
+ScanDocumentType.jsx, BulkScanOptimize.jsx, BulkRouteSetup.jsx,
+CreateRoute.jsx, EditRoute.jsx, AssignRoute.jsx, ReassignRoute.jsx,
+UnassignRoute.jsx, RouteHandoff.jsx, RouteEditor.jsx,
+ComboRouteSelection.jsx, ComboRouteReview.jsx, AddAddress.jsx,
+EditAddress.jsx, AddressDetail.jsx, AddressPool.jsx, AddressImport.jsx,
+AddressQuestionDetail.jsx, DCNUpload.jsx, DCNMatching.jsx,
+DCNBatchDetail.jsx, CreateScheduledServe.jsx, EditScheduledServe.jsx,
+ReceiptQueue.jsx, ReceiptDetail.jsx, ReceiptReview.jsx, SubmitReceipt.jsx,
+PayrollRecordDetail.jsx, PayrollRecover.jsx, VacationRequests.jsx,
+ActivityLog.jsx, Analytics.jsx, Notifications.jsx, Chat.jsx, Workers.jsx
+
+COMPONENTS (src/components/):
+boss/: BossBottomNav, CapacityOverview, MessageDialog, NotificationBell,
+  ScheduledServesPanel, SmartAssignmentCard, WorkerLocationMap, WorkerMetricsCard
+  dashboard/: DashboardOverview, WorkerCard, RecentActivityFeed
+worker/: LocationTracker
+scanning/: RelatedDocumentsModal, ScanningService
+services/: SmartAssignmentService, MetricsService
+hooks/: useCurrentUser, useUserSettings
+layout/: Header, BottomNav, BossBottomNav
+
+DOCS: WORKFLOW.md, docs/specs/, docs/handoffs/, docs/audits/`
+
 // ── Priority badge ─────────────────────────────────────────────────────────
 function PriorityBadge({ priority }) {
   return (
@@ -46,8 +81,6 @@ function parseDataUrl(dataUrl) {
 }
 
 // ── Telegram message builder ───────────────────────────────────────────────
-// Produces a /bug command the field bot understands.
-// Bot receives this, formats it, and saves to Drive in the correct folder.
 function buildTelegramMessage(item) {
   const category = item.category || item.stage || 'Stability'
   const lines = [
@@ -58,9 +91,10 @@ function buildTelegramMessage(item) {
     `What: ${item.what}`,
     `Why: ${item.why}`,
   ]
-  if (item.file)      lines.push(`File: ${item.file}`)
-  if (item.blockedBy) lines.push(`Blocked by: ${item.blockedBy}`)
-  if (item.notes)     lines.push(`Notes: ${item.notes}`)
+  if (item.file)        lines.push(`File: ${item.file}`)
+  if (item.codeContext) lines.push(`Code context: ${item.codeContext}`)
+  if (item.blockedBy)   lines.push(`Blocked by: ${item.blockedBy}`)
+  if (item.notes)       lines.push(`Notes: ${item.notes}`)
   return lines.join('\n')
 }
 
@@ -89,7 +123,7 @@ function TelegramCopyButton({ item }) {
 
 // ── Work On modal ──────────────────────────────────────────────────────────
 function WorkOnModal({ item, onClose }) {
-  const { messages, isLoading, error, sendMessage, resetChat } = useClaudeChat()
+  const { messages, isLoading, error, sendMessage } = useClaudeChat()
   const [copied, setCopied]   = useState(false)
   const [started, setStarted] = useState(false)
 
@@ -135,19 +169,16 @@ function WorkOnModal({ item, onClose }) {
               </button>
             </div>
           )}
-
           {isLoading && (
             <div className="text-center py-6">
               <div className="text-sm text-muted">Generating session prompt...</div>
             </div>
           )}
-
           {error && (
             <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-btn px-3 py-2">
               {error}
             </div>
           )}
-
           {prompt && (
             <>
               <div className="bg-elevated border border-border rounded-btn p-3 font-mono text-xs text-text leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
@@ -228,6 +259,16 @@ function SprintItemRow({ item, onStatusChange, onNotesChange }) {
                 <div>
                   <div className="text-[9px] text-muted uppercase tracking-widest mb-0.5">File / Location</div>
                   <div className="text-xs text-text leading-relaxed font-mono">{item.file}</div>
+                </div>
+              </div>
+            )}
+
+            {item.codeContext && (
+              <div className="flex gap-2 bg-elevated border border-accent/20 rounded-btn px-3 py-2.5">
+                <Sparkles size={13} className="text-accent shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-[9px] text-accent uppercase tracking-widest mb-0.5">Code Context</div>
+                  <div className="text-xs text-text leading-relaxed">{item.codeContext}</div>
                 </div>
               </div>
             )}
@@ -409,12 +450,13 @@ const PRIORITY_BADGE_STYLE = {
 }
 
 function LogIssuePanel({ onAddIssue }) {
-  const [open, setOpen]           = useState(false)
-  const [type, setType]           = useState('bug')
-  const [description, setDesc]    = useState('')
-  const [images, setImages]       = useState([])
-  const [pending, setPending]     = useState(false)
-  const [error, setError]         = useState(null)
+  const [open, setOpen]        = useState(false)
+  const [type, setType]        = useState('bug')
+  const [description, setDesc] = useState('')
+  const [images, setImages]    = useState([])
+  const [pending, setPending]  = useState(false)
+  const [error, setError]      = useState(null)
+  const [step, setStep]        = useState('')   // shows user what's happening
 
   const fileInputRef   = useRef(null)
   const cameraInputRef = useRef(null)
@@ -425,6 +467,7 @@ function LogIssuePanel({ onAddIssue }) {
     setImages([])
     setOpen(false)
     setError(null)
+    setStep('')
   }
 
   const handleFiles = async (files) => {
@@ -448,10 +491,14 @@ function LogIssuePanel({ onAddIssue }) {
     if (!description.trim() || pending) return
     setPending(true)
     setError(null)
-    try {
-      const systemPrompt = `You are formatting a field issue report for the RouteToServe app (serveroute-v2).
 
-Take the raw input (text and any screenshots provided) and reply ONLY with a JSON object — no markdown, no explanation, just raw JSON:
+    try {
+      // ── Step 1: Format the raw report ─────────────────────────────────────
+      setStep('Formatting issue...')
+
+      const formatPrompt = `You are formatting a field issue report for the RouteToServe app (serveroute-v2).
+
+Reply ONLY with a JSON object — no markdown, no explanation, just raw JSON:
 
 {
   "title": "Short title (5 words max)",
@@ -459,16 +506,15 @@ Take the raw input (text and any screenshots provided) and reply ONLY with a JSO
   "priority": "high | medium | low",
   "what": "One sentence: what is broken or needed",
   "why": "One sentence: why this matters in the field",
-  "file": "File path or component name if known, otherwise empty string",
-  "screenshotDescription": "Brief description of what the screenshots show, or empty string if none"
+  "screenshotDescription": "Brief description of what screenshots show, or empty string if none",
+  "keywords": ["2-4 keywords describing the affected screen or feature"]
 }
 
 Rules:
 - title: scannable, not a sentence
 - type: bug = broken, feature = new capability, ux = friction/confusion, spec = needs planning
 - priority: high = blocks field work, medium = degrades experience, low = nice to have
-- file: empty string if not mentioned
-- If screenshots are provided, describe what they show in screenshotDescription to help developers understand the visual context`
+- keywords: think component names, screen names, feature areas — used to find the right file`
 
       const userContent = [
         { type: 'text', text: `Type: ${type}\n\n${description}` },
@@ -478,27 +524,77 @@ Rules:
         })),
       ]
 
-      const res = await fetch(PROXY_URL, {
+      const step1Res = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 500,
-          system: systemPrompt,
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: formatPrompt,
           messages: [{ role: 'user', content: userContent }],
         }),
       })
 
-      const responseData = await res.json()
-      if (responseData.error) throw new Error(responseData.error.message ?? 'API error')
+      const step1Data = await step1Res.json()
+      if (step1Data.error) throw new Error(step1Data.error.message ?? 'API error')
 
-      const raw    = responseData.content?.[0]?.text ?? ''
-      const clean  = raw.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(clean)
+      const step1Raw   = step1Data.content?.[0]?.text ?? ''
+      const step1Clean = step1Raw.replace(/```json|```/g, '').trim()
+      const formatted  = JSON.parse(step1Clean)
+      const keywords   = formatted.keywords || []
 
+      // ── Step 2: Locate the bug in the codebase ─────────────────────────────
+      setStep('Locating in codebase...')
+
+      const locatePrompt = `You are a code navigator for the RouteToServe app (serveroute-v2).
+
+Given a bug report and the file map, identify the most likely file where this bug lives.
+
+Reply ONLY with a JSON object — no markdown, no explanation:
+
+{
+  "file": "src/pages/MostLikelyFile.jsx",
+  "altFiles": ["src/pages/SecondChoice.jsx"],
+  "codeContext": "One sentence: what specific function, hook, or section to look at"
+}
+
+Rules:
+- file: the single most likely file path, or empty string if unclear
+- altFiles: 0-2 other possible files, empty array if none
+- codeContext: be specific — name the function, handler, or useEffect if you can infer it`
+
+      const step2Res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 250,
+          system: locatePrompt,
+          messages: [{
+            role: 'user',
+            content: `Bug: ${formatted.title}\nWhat: ${formatted.what}\nKeywords: ${keywords.join(', ')}\n\n${CODEBASE_FILE_MAP}`,
+          }],
+        }),
+      })
+
+      const step2Data  = await step2Res.json()
+      const step2Raw   = step2Data.content?.[0]?.text ?? ''
+      const step2Clean = step2Raw.replace(/```json|```/g, '').trim()
+      let location     = { file: '', altFiles: [], codeContext: '' }
+      try { location = JSON.parse(step2Clean) } catch {}
+
+      // ── Combine and save ───────────────────────────────────────────────────
       onAddIssue({
-        ...parsed,
-        screenshots: images.map(img => img.dataUrl),
+        title:                 formatted.title,
+        type:                  formatted.type,
+        priority:              formatted.priority,
+        what:                  formatted.what,
+        why:                   formatted.why,
+        screenshotDescription: formatted.screenshotDescription || '',
+        file:                  location.file || '',
+        codeContext:           location.codeContext || '',
+        altFiles:              location.altFiles || [],
+        screenshots:           images.map(img => img.dataUrl),
       })
       reset()
     } catch (e) {
@@ -506,6 +602,7 @@ Rules:
       setError('Something went wrong. Try again.')
     } finally {
       setPending(false)
+      setStep('')
     }
   }
 
@@ -555,7 +652,7 @@ Rules:
             autoFocus
             value={description}
             onChange={e => setDesc(e.target.value)}
-            placeholder="Describe what happened or what's needed. Be as rough as you want — Claude will format it."
+            placeholder="Describe what happened or what's needed. Be as rough as you want — Claude will format it and find the file."
             rows={4}
             className="w-full bg-elevated border border-border rounded-btn px-3 py-2 text-sm text-text placeholder-muted resize-none focus:outline-none focus:border-accent/60 transition-colors"
           />
@@ -632,7 +729,7 @@ Rules:
             disabled={!description.trim() || pending}
             className="w-full text-xs px-3 py-2 bg-accent hover:bg-accent-dim text-white rounded-btn transition-colors disabled:opacity-40"
           >
-            {pending ? 'Sending to Claude...' : 'Send to Claude →'}
+            {pending ? step || 'Working...' : 'Send to Claude →'}
           </button>
         </div>
       )}
@@ -642,8 +739,8 @@ Rules:
 
 // ── Logged issue card ──────────────────────────────────────────────────────
 function LoggedIssueCard({ issue, onUpdateStatus, onRemove }) {
-  const [expanded, setExpanded]         = useState(false)
-  const [lightboxSrc, setLightboxSrc]   = useState(null)
+  const [expanded, setExpanded]       = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   return (
     <>
@@ -697,6 +794,16 @@ function LoggedIssueCard({ issue, onUpdateStatus, onRemove }) {
               <div className="flex gap-2 bg-elevated border border-border rounded-btn px-3 py-2">
                 <FileCode size={12} className="text-muted shrink-0 mt-0.5" />
                 <div className="text-xs text-text font-mono">{issue.file}</div>
+              </div>
+            )}
+
+            {issue.codeContext && (
+              <div className="flex gap-2 bg-elevated border border-accent/20 rounded-btn px-3 py-2">
+                <Sparkles size={12} className="text-accent shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-[9px] text-accent uppercase tracking-widest mb-0.5">Code Context</div>
+                  <div className="text-xs text-text leading-relaxed">{issue.codeContext}</div>
+                </div>
               </div>
             )}
 
